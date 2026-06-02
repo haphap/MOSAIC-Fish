@@ -74,8 +74,9 @@ class _GraphNamespace:
         self._store.set_ontology(graph_ids, entities or {}, edges or {})
 
     def add(self, graph_id: str, type: str = "text", data: str = "", **_: Any) -> EpisodeResult:
-        # P3 将在此处接入 LLM 实体/边抽取；P1 仅落库 episode。
+        # 落库 episode → LLM 抽取实体/边入图（抽取失败不影响 episode）。
         ep_uuid = self._store.add_episode(graph_id, data, type)
+        self._store.ingest_text(graph_id, data)
         return EpisodeResult(uuid=ep_uuid)
 
     def add_batch(self, graph_id: str, episodes: Any = None, **_: Any) -> list[EpisodeResult]:
@@ -84,6 +85,7 @@ class _GraphNamespace:
             data = getattr(ep, "data", None) or ""
             type_ = getattr(ep, "type", None) or "text"
             ep_uuid = self._store.add_episode(graph_id, data, type_)
+            self._store.ingest_text(graph_id, data)
             results.append(EpisodeResult(uuid=ep_uuid))
         return results
 
@@ -93,10 +95,10 @@ class _GraphNamespace:
         query: str = "",
         limit: int = 10,
         scope: str = "edges",
-        reranker: Optional[str] = None,  # 兼容保留；CE 无 cross_encoder，P2 用 RRF
+        reranker: Optional[str] = None,  # 兼容保留；CE 无 cross_encoder，退化为 RRF
         **_: Any,
     ) -> SearchResults:
-        return self._store.search(graph_id or "", query, limit, scope)
+        return self._store.search(graph_id or "", query, limit, scope, reranker or "rrf")
 
 
 class MiroGraph:
