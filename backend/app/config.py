@@ -6,6 +6,14 @@
 import os
 from dotenv import load_dotenv
 
+
+def _safe_int(value, default):
+    """容错解析整数：非法/空值回退默认，避免 .env 配错导致整个模块导入即崩。"""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
 # 加载项目根目录的 .env 文件
 # 路径: MiroFish/.env (相对于 backend/app/config.py)
 project_root_env = os.path.join(os.path.dirname(__file__), '../../.env')
@@ -46,7 +54,7 @@ class Config:
         'LLM_BASE_URL', 'https://api.openai.com/v1'
     )
     EMBEDDING_MODEL_NAME = os.environ.get('EMBEDDING_MODEL_NAME', 'text-embedding-3-small')
-    EMBEDDING_DIMENSIONS = int(os.environ.get('EMBEDDING_DIMENSIONS', '1536'))
+    EMBEDDING_DIMENSIONS = _safe_int(os.environ.get('EMBEDDING_DIMENSIONS'), 1536)
 
     # Zep配置（仅 GRAPH_MEMORY_BACKEND=zep 时需要）
     ZEP_API_KEY = os.environ.get('ZEP_API_KEY')
@@ -87,5 +95,10 @@ class Config:
             errors.append("LLM_API_KEY 未配置")
         if cls.GRAPH_MEMORY_BACKEND.lower() == 'zep' and not cls.ZEP_API_KEY:
             errors.append("ZEP_API_KEY 未配置（GRAPH_MEMORY_BACKEND=zep）")
+        raw_dim = os.environ.get('EMBEDDING_DIMENSIONS')
+        if raw_dim not in (None, '') and _safe_int(raw_dim, None) is None:
+            errors.append(f"EMBEDDING_DIMENSIONS 必须是整数，当前: {raw_dim!r}")
+        if cls.EMBEDDING_DIMENSIONS <= 0:
+            errors.append(f"EMBEDDING_DIMENSIONS 必须 > 0，当前: {cls.EMBEDDING_DIMENSIONS}")
         return errors
 

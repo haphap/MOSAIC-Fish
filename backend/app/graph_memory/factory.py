@@ -8,12 +8,14 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Optional
 
 from ..config import Config
 
 
-def get_graph_client(api_key: Optional[str] = None, **kwargs: Any):
+def get_graph_client(api_key: Optional[str] = None):
+    """返回图记忆客户端。签名对两个后端对称，仅接受 ``api_key``
+    （Zep 客户端不接受任意 kwargs，故此处也不转发额外参数）。"""
     backend = (getattr(Config, "GRAPH_MEMORY_BACKEND", "neo4j") or "neo4j").lower()
     if backend == "zep":
         from zep_cloud.client import Zep
@@ -22,4 +24,4 @@ def get_graph_client(api_key: Optional[str] = None, **kwargs: Any):
 
     from .client import MiroGraph
 
-    return MiroGraph(api_key=api_key, **kwargs)
+    return MiroGraph(api_key=api_key)

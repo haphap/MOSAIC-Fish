@@ -81,10 +81,14 @@ class Neo4jStore:
     def _ensure_schema(self) -> None:
         dim = Config.EMBEDDING_DIMENSIONS
         stmts = [
-            f"CREATE CONSTRAINT miro_node_uuid IF NOT EXISTS "
-            f"FOR (n:{_BASE_LABEL}) REQUIRE (n.graph_id, n.uuid) IS UNIQUE",
-            f"CREATE CONSTRAINT miro_ep_uuid IF NOT EXISTS "
-            f"FOR (e:{_EPISODE_LABEL}) REQUIRE (e.graph_id, e.uuid) IS UNIQUE",
+            # uuid 全局唯一（与按 uuid 查的 get_node/get_episode 语义一致；uuid4 本就全局唯一）。
+            # 先丢弃早期的 (graph_id, uuid) 复合约束再建全局唯一约束（幂等）。
+            "DROP CONSTRAINT miro_node_uuid IF EXISTS",
+            "DROP CONSTRAINT miro_ep_uuid IF EXISTS",
+            f"CREATE CONSTRAINT miro_node_uuid_u IF NOT EXISTS "
+            f"FOR (n:{_BASE_LABEL}) REQUIRE n.uuid IS UNIQUE",
+            f"CREATE CONSTRAINT miro_ep_uuid_u IF NOT EXISTS "
+            f"FOR (e:{_EPISODE_LABEL}) REQUIRE e.uuid IS UNIQUE",
             f"CREATE CONSTRAINT miro_graph_id IF NOT EXISTS "
             f"FOR (g:{_GRAPH_LABEL}) REQUIRE g.graph_id IS UNIQUE",
             f"CREATE INDEX miro_node_graph IF NOT EXISTS FOR (n:{_BASE_LABEL}) ON (n.graph_id)",

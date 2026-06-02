@@ -9,8 +9,16 @@
   graph.edge.get_by_graph_id
   graph.episode.get
 
-注意（P1）：``add`` / ``add_batch`` 仅把文本 episode 落库，**尚未做 LLM 实体抽取**
-（抽取在 P3 接入）；``search`` 为全文检索（向量在 P2 接入）。
+语义差异（相对 Zep）：``add`` / ``add_batch`` 落 episode 后会**同步**执行
+LLM 实体/边抽取（``ingest_text``）并写入图谱——与 Zep「``graph.add`` 立即返回、
+处理在云端异步进行、再轮询 ``episode.get(...).processed``」不同。因此：
+  * ``add`` / ``add_batch`` 是**阻塞调用**，每个 episode 约耗时一次 LLM 往返；
+    ``add_batch`` 会串行累加整批耗时。
+  * episode 落库即视为已处理，``episode.get(...).processed`` 恒为 True，故上游
+    ``graph_builder`` 的等待轮询会立即返回（图谱在 add 返回时已构建完成）。
+  * 抽取失败不影响 episode 落库（``ingest_text`` 内部优雅降级）。
+如需 Zep 式异步语义（后台队列 + 真实 processed 信号），可在此层后续引入。
+``search`` 为向量 + 全文 RRF 混合检索。
 """
 
 from __future__ import annotations
