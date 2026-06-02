@@ -16,7 +16,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 from openai import OpenAI
-from zep_cloud.client import Zep
+
+from ..graph_memory import get_graph_client
 
 from ..config import Config
 from ..utils.logger import get_logger
@@ -203,11 +204,11 @@ class OasisProfileGenerator:
         self.zep_client = None
         self.graph_id = graph_id
         
-        if self.zep_api_key:
+        if self.zep_api_key or Config.GRAPH_MEMORY_BACKEND.lower() != 'zep':
             try:
-                self.zep_client = Zep(api_key=self.zep_api_key)
+                self.zep_client = get_graph_client(api_key=self.zep_api_key)
             except Exception as e:
-                logger.warning(f"Zep客户端初始化失败: {e}")
+                logger.warning(f"图记忆客户端初始化失败: {e}")
     
     def generate_profile_from_entity(
         self, 

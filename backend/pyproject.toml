@@ -15,7 +15,10 @@ dependencies = [
     
     # LLM 相关
     "openai>=1.0.0",
-    
+
+    # 图记忆后端：Neo4j Community Edition（取代 Zep Cloud）
+    "neo4j>=5.20,<6",
+
     # Zep Cloud
     "zep-cloud==3.13.0",
     
