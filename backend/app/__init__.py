@@ -13,7 +13,7 @@ from flask import Flask, request
 from flask_cors import CORS
 
 from .config import Config
-from .utils.logger import setup_logger, get_logger
+from .utils.logger import setup_logger, get_logger, redact_sensitive
 
 
 def create_app(config_class=Config):
@@ -54,7 +54,7 @@ def create_app(config_class=Config):
         logger = get_logger('mirofish.request')
         logger.debug(f"请求: {request.method} {request.path}")
         if request.content_type and 'json' in request.content_type:
-            logger.debug(f"请求体: {request.get_json(silent=True)}")
+            logger.debug("请求体: %s", redact_sensitive(request.get_json(silent=True)))
     
     @app.after_request
     def log_response(response):
@@ -77,4 +77,3 @@ def create_app(config_class=Config):
         logger.info("MiroFish Backend 启动完成")
     
     return app
-

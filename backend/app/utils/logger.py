@@ -6,6 +6,7 @@
 import os
 import sys
 import logging
+import re
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 
@@ -26,6 +27,43 @@ def _ensure_utf8_stdout():
 # 日志目录
 LOG_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'logs')
 
+_SENSITIVE_KEY_RE = re.compile(
+    r"(api[_-]?key|token|secret|password|authorization|access[_-]?key|bearer)",
+    re.IGNORECASE,
+)
+_KEY_VALUE_RE = re.compile(
+    r"(?i)(['\"]?(?:api[_-]?key|token|secret|password|authorization|access[_-]?key)['\"]?\s*[:=]\s*['\"])([^'\"]+)(['\"])",
+)
+_BEARER_RE = re.compile(r"(?i)\b(Bearer\s+)[A-Za-z0-9._~+/=-]+")
+_PREFIXED_SECRET_RE = re.compile(r"\b(?:sk|tp)-[A-Za-z0-9._-]{8,}\b")
+
+
+def redact_sensitive(value):
+    """Return value with API keys/tokens redacted before it reaches log sinks."""
+    if isinstance(value, dict):
+        return {
+            key: "[REDACTED]" if _SENSITIVE_KEY_RE.search(str(key)) else redact_sensitive(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, (list, tuple)):
+        redacted = [redact_sensitive(item) for item in value]
+        return type(value)(redacted) if isinstance(value, tuple) else redacted
+    if isinstance(value, str):
+        text = _KEY_VALUE_RE.sub(r"\1[REDACTED]\3", value)
+        text = _BEARER_RE.sub(r"\1[REDACTED]", text)
+        return _PREFIXED_SECRET_RE.sub("[REDACTED]", text)
+    return value
+
+
+class RedactingFilter(logging.Filter):
+    """Sanitize log records centrally so both file and console handlers are safe."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.msg = redact_sensitive(record.msg)
+        if record.args:
+            record.args = redact_sensitive(record.args)
+        return True
+
 
 def setup_logger(name: str = 'mirofish', level: int = logging.DEBUG) -> logging.Logger:
     """
@@ -44,6 +82,9 @@ def setup_logger(name: str = 'mirofish', level: int = logging.DEBUG) -> logging.
     # 创建日志器
     logger = logging.getLogger(name)
     logger.setLevel(level)
+    redacting_filter = RedactingFilter()
+    if not any(isinstance(f, RedactingFilter) for f in logger.filters):
+        logger.addFilter(redacting_filter)
     
     # 阻止日志向上传播到根 logger，避免重复输出
     logger.propagate = False
@@ -73,6 +114,7 @@ def setup_logger(name: str = 'mirofish', level: int = logging.DEBUG) -> logging.
     )
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(detailed_formatter)
+    file_handler.addFilter(redacting_filter)
     
     # 2. 控制台处理器 - 简洁日志（INFO及以上）
     # 确保 Windows 下使用 UTF-8 编码，避免中文乱码
@@ -80,6 +122,7 @@ def setup_logger(name: str = 'mirofish', level: int = logging.DEBUG) -> logging.
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(logging.INFO)
     console_handler.setFormatter(simple_formatter)
+    console_handler.addFilter(redacting_filter)
     
     # 添加处理器
     logger.addHandler(file_handler)
@@ -123,4 +166,3 @@ def error(msg: str, *args, **kwargs) -> None:
 
 def critical(msg: str, *args, **kwargs) -> None:
     logger.critical(msg, *args, **kwargs)
-
